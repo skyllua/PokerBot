@@ -1,0 +1,452 @@
+
+    private void moveChipsToBank() {
+        Table table = getTableById(message.getChatId());
+
+        int maxBet = 0;
+        for (Player player : table.players)
+            if (player.getBet() > maxBet && !player.getStatus().equals("fold")) maxBet = player.getBet();
+
+
+        int minBet = table.players.get(0).getBet();
+        maxBet = 0;
+        int prevMaxBet = 0;
+        for (Player player : table.players) {
+            if (player.getBet() > maxBet && !player.getStatus().equals("fold")) {
+                prevMaxBet = maxBet;
+                maxBet = player.getBet();
+            }
+            if (player.getBet() < minBet && !player.getStatus().equals("fold")) minBet = player.getBet();
+        }
+
+
+        int countPlayerWithMaxBet = 0;
+        long playerId = 0;
+        for (Player player : table.players) {
+            if (player.getBet() == maxBet) {
+                countPlayerWithMaxBet++;
+                playerId = player.getId();
+            }
+        }
+        if (countPlayerWithMaxBet == 1) {  // return money
+            int countChips = maxBet == minBet ? maxBet : maxBet - minBet;
+            maxBet = maxBet - minBet;
+            sendMsg("*Банк вернул @" + table.getPlayer(playerId).getName() + " " + countChips + chipIco + "*");
+            table.getPlayer(playerId).getChips(-countChips);
+        }
+
+        // get Chips from folded players
+        int countFoldedPlayersChips = 0;
+        for (Player player : table.players) {
+            if (player.getStatus().equals("fold")) {
+                countFoldedPlayersChips += player.getBet();
+                if (TEST) System.out.println("find folded player " + player.getBet());
+                player.setBet(0);
+                for (Bank bank : table.banks) {
+                    bank.removePlayer(player.getId());
+                }
+            }
+        }
+
+        table.nowMaxBet = 0;
+        while (maxBet != 0) {
+            ArrayList<Player> players = new ArrayList<>();
+            for (Player player : table.players) {
+                if (player.getBet() > 0 && player.getBet() >= minBet && !player.getStatus().equals("fold")) {
+                    players.add(player);
+                    player.setBet(player.getBet() - minBet);
+                }
+            }
+
+            // Создаем банк!
+            if (table.banks.size() == 0) {
+                table.banks.add(new Bank(minBet * players.size() + countFoldedPlayersChips, players));
+                if (TEST) System.out.println("Created bank " + minBet * players.size() + countFoldedPlayersChips);
+            } else {  // remove if (players.size() > 1)
+                if (table.banks.get(table.banks.size() - 1).getPlayers().equals(players)) //set chips from last bank and add table chips
+                    table.banks.get(table.banks.size() - 1).setChips(table.banks.get(table.banks.size() - 1).getChips() + minBet * players.size() + countFoldedPlayersChips);
+                else
+                    table.banks.add(new Bank(minBet * players.size() + countFoldedPlayersChips, players));
+            }
+
+            minBet = maxBet;
+            maxBet = 0;
+            for (Player player : table.players) {
+                if (player.getBet() > maxBet && !player.getStatus().equals("fold")) maxBet = player.getBet();
+                if (player.getBet() < minBet && !player.getStatus().equals("fold")) minBet = player.getBet();
+            }
+        }
+    }
+
+    //    public ArrayList<Card> getCombinationByRank(int rank, Player player) {
+    //        Table table = getTableById(message.getChatId());
+    //        ArrayList<Card> combination = new ArrayList<>();
+    //        switch (rank) {
+    //            case 0:
+    //                combination = Evaluation.getRoyalFlush(table.getCardsOnTable(), player.getHand());
+    //                break;
+    //
+    //            case 1:
+    //                combination = Evaluation.getStraightFlush(table.getCardsOnTable(), player.getHand());
+    //                break;
+    //
+    //            case 2:
+    //                combination = Evaluation.getFourOfAKind(table.getCardsOnTable(), player.getHand());
+    //                break;
+    //
+    //            case 3:
+    //                combination = Evaluation.getFullHouse(table.getCardsOnTable(), player.getHand());
+    //                break;
+    //
+    //            case 4:
+    //                combination = Evaluation.getFlush(table.getCardsOnTable(), player.getHand());
+    //                break;
+    //
+    //            case 5:
+    //                combination = Evaluation.getStraight(table.getCardsOnTable(), player.getHand());
+    //                break;
+    //
+    //            case 6:
+    //                combination = Evaluation.getThreeOfAKind(table.getCardsOnTable(), player.getHand());
+    //                break;
+    //
+    //            case 7:
+    //                combination = Evaluation.getTwoPair(table.getCardsOnTable(), player.getHand());
+    //                break;
+    //
+    //            case 8:
+    //                combination = Evaluation.getPair(table.getCardsOnTable(), player.getHand());
+    //                break;
+    //
+    //            case 9:
+    //                combination = Evaluation.getHighestCards(table.getCardsOnTable(), player.getHand());
+    //                break;
+    //        }
+    //
+    //        return combination;
+    //    }
+
+
+        @Override
+        public void onUpdateReceived(Update update) {
+            message = update.getMessage();
+            if (getTableById(message.getChatId()) == null) {
+                tables.add(new Table(message.getChatId()));
+            }
+
+            if (message.isGroupMessage()) {
+                // delete message if player isn't joined to the game
+                if (getTableById(message.getChatId()).isStarted()) {
+                    if (!isJoinOnGame(message.getFrom().getId())) deleteMsg();
+                }
+
+
+
+                if (message.getText().startsWith("/create")) {
+                    doOnCreate();
+                }
+                else if (message.getText().startsWith("/join")) {
+                    doOnJoin();
+                }
+                else if (message.getText().startsWith("/left")) {
+                    doOnLeft();
+                }
+                else if (message.getText().startsWith("/cancel")) {
+                    doOnCancel();
+                }
+                else if (message.getText().startsWith("/start")) {
+                    doOnStart();
+                }
+                /*
+
+
+
+                    THIS USING IF-ELSE CONSTRUCTION
+
+
+
+                 */
+                else if (message.getText().toLowerCase().startsWith("/raiseto") ||
+                        message.getText().toLowerCase().startsWith("/check") ||
+                        message.getText().toLowerCase().startsWith("/call") ||
+                        message.getText().toLowerCase().startsWith("/allin") ||
+                        message.getText().toLowerCase().startsWith("/fold")) {
+
+                    Table table = getTableById(message.getChatId());
+                    // all Message when Game is CREATED and Game is STARTED
+                    if (getTableById(message.getChatId()).isCreated() && getTableById(message.getChatId()).isStarted() && !getTableById(message.getChatId()).isFinished()) {
+
+                        Player nowPlayer = getTableById(message.getChatId()).getNowPlayerTurn();
+                        Player prevPlayer = null;
+                        // if message send player whose now turn do that
+                        if (message.getFrom().getId() == nowPlayer.getId()) {
+                            deleteMsg();
+                            boolean isDoIt = false;
+                            System.out.println("\n\n" + message.getFrom().getUserName() + ": " + message.getText());
+
+                            if (message.getText().toLowerCase().startsWith("/fold")) {
+                                nowPlayer.setStatus("fold");
+                                table.countAgreedPlayers++;
+                                sendMsg(foldIco + " Игрок @" + nowPlayer.getName() + " сбросил карты.");
+                                prevPlayer = nowPlayer;
+                                isDoIt = true;
+                            }
+
+                            else if (message.getText().toLowerCase().startsWith("/check") && nowPlayer.getBet() >= table.nowMaxBet) {
+                                nowPlayer.setStatus("check");
+                                table.countAgreedPlayers++;
+                                sendMsg(checkIco + " Игрок @" + nowPlayer.getName() + " пропускает ход.");
+                                prevPlayer = nowPlayer;
+                                isDoIt = true;
+                            }
+
+                            else if (message.getText().toLowerCase().startsWith("/call") && nowPlayer.getBet() < table.nowMaxBet) {
+                                if (nowPlayer.countChips() >= (table.nowMaxBet - nowPlayer.getBet())) {
+                                    nowPlayer.getChips(table.nowMaxBet - nowPlayer.getBet());
+                                    nowPlayer.setBet(table.nowMaxBet);
+                                    nowPlayer.setStatus("call");
+                                    sendMsg(checkIco + " Игрок @" + nowPlayer.getName() + " принял ставку.");
+                                } else {
+                                    nowPlayer.setBet(nowPlayer.countChips() + nowPlayer.getBet());
+                                    nowPlayer.getChips(nowPlayer.countChips());
+                                    nowPlayer.setStatus("allin");
+                                    sendMsg(attantionIco + " Игрок @" + nowPlayer.getName() + " пошел ВА-БАНК!");
+                                }
+
+                                table.countAgreedPlayers++;
+                                prevPlayer = nowPlayer;
+                                isDoIt = true;
+                            }
+
+                            else if (message.getText().toLowerCase().startsWith("/allin")) {
+                                nowPlayer.setBet(nowPlayer.countChips() + nowPlayer.getBet());
+                                nowPlayer.getChips(nowPlayer.countChips());
+                                nowPlayer.setStatus("allin");
+                                table.countAgreedPlayers++;
+
+                                if (nowPlayer.getBet() > table.nowMaxBet) {
+                                    table.nowMaxBet = nowPlayer.getBet();
+                                    table.countAgreedPlayers = 1;
+                                }
+
+                                sendMsg(attantionIco + " Игрок @" + nowPlayer.getName() + " пошел ВА-БАНК!");
+                                prevPlayer = nowPlayer;
+                                isDoIt = true;
+                            }
+
+                            else if (message.getText().toLowerCase().startsWith("/raiseto")) {
+                                int raiseto = 0;
+
+                                try {
+                                    raiseto = Integer.parseInt(message.getText().replaceAll("/raiseto", "").replaceAll("@" + getBotUsername(), "").replaceAll(" ", ""));
+                                    if (nowPlayer.countChips() >= raiseto && raiseto > table.nowMaxBet) {
+                                        nowPlayer.setStatus("raise");
+                                        table.countAgreedPlayers = 1;
+                                        nowPlayer.getChips(raiseto - nowPlayer.getBet());
+                                        nowPlayer.setBet(raiseto);
+                                        table.nowMaxBet = raiseto;
+
+                                        if (nowPlayer.countChips() == 0) {
+                                            sendMsg(attantionIco + " Игрок @" + nowPlayer.getName() + " пошел ВА-БАНК!");
+                                        } else {
+                                            sendMsg(attantionIco + " Игрок @" + nowPlayer.getName() + " повышает ставку до " + table.nowMaxBet + chipIco + "!");
+                                        }
+
+                                        prevPlayer = nowPlayer;
+                                        isDoIt = true;
+                                    } else if (nowPlayer.countChips() < raiseto) {
+                                        sendMsg(errorIco + "*У вас недостаточно фишек!*");
+                                    }
+                                    else {
+                                        sendMsg(errorIco + " Ваша ставка " + raiseto + chipIco + " меньше за ставку стола " + table.nowMaxBet + chipIco);
+                                    }
+                                } catch (NumberFormatException e) {
+                                    System.out.println("Не могу преобразовать " + raiseto + " в Integer.");
+                                }
+                            }
+
+                            // Check nextPlayer is the PrevPlayer ? If YES then do next part of game. Else next player's turn
+                            if (isDoIt) {
+                                try {
+                                    execute(new DeleteMessage()
+                                            .setMessageId(table.callPlayerMsg.getMessageId())
+                                            .setChatId(table.callPlayerMsg.getChatId()));
+                                } catch (Exception e) {
+                                    e.printStackTrace();
+                                }
+
+                                // проверяем количество игроков, которые скинули карты или пошли вабанк и прибавляем их к
+                                // согласившимся игрокам
+                                int countAllInPlayers = 0;
+                                int countFoldPlayers = 0;
+                                int countDontMovePlayers = 0;
+                                for (Player player : table.players) {
+                                    if (player.getStatus().equals("allin"))
+                                        countAllInPlayers++;
+                                    if (player.getStatus().equals("fold"))
+                                        countFoldPlayers++;
+                                    if (player.getStatus().equals(""))
+                                        countDontMovePlayers++;
+                                }
+
+
+                                if (TEST) {
+                                    System.out.println("count players " + table.players.size());
+                                    System.out.println("count allin " + countAllInPlayers);
+                                    System.out.println("count fold " + countFoldPlayers);
+                                    System.out.println("count agree " + table.countAgreedPlayers);
+                                }
+
+
+
+                                // проверяем количество согласившигся игроков.
+                                // Либо играем дальше, либо переходим к следующему этапу.
+                                // И проверяем на количество активных игроков
+                                if (table.countAgreedPlayers < table.players.size() && (table.players.size() - countFoldPlayers > 1 || table.players.size() - countAllInPlayers <= 1 || table.players.size() < countDontMovePlayers)) {
+                                    /**
+                                     *              1
+                                     */
+                                    if (TEST) System.out.println("--in 1");
+
+                                    nowPlayer = table.getNextPlayerTurn();
+                                    while (nowPlayer.getStatus().equals("fold") || nowPlayer.getStatus().equals("allin")) {
+                                        nowPlayer = table.getNextPlayerTurn();
+                                    }
+
+                                    table.callPlayerMsg = sendMsg("*Слово за игроком @" + nowPlayer.getName() + " ( " + nowPlayer.countChips() + chipIco + " )*\n" +
+                                            "Ставка стола " + table.nowMaxBet + chipIco + "\n"+
+                                            "Ваша ставка " + nowPlayer.getBet() + chipIco );
+                                }
+                                else if (table.players.size() - countFoldPlayers <= 1) {
+                                    /**
+                                     *              2
+                                     */
+                                    if (TEST) System.out.println("--in 2");
+
+                                    for (Player player : table.players) {
+                                        if (player.getStatus().equals("check") || player.getStatus().equals("call") || player.getStatus().equals("raise") || player.getStatus().equals("allin") || player.getStatus().equals("")) {
+                                            moveChipsToBank();
+                                            int countWinningChips = 0;
+                                            for (Bank bank : table.banks) {
+                                                countWinningChips += bank.getChips();
+                                            }
+
+                                            sendMsg(winnerIco + "*Игрок @" + player.getName() + " победил!*\nВыигрыш " + countWinningChips + chipIco);
+                                            player.getChips(-countWinningChips);
+                                            break;
+
+                                        }
+                                    }
+
+                                    startNewPart();
+                                }
+                                else if (table.players.size() - (countAllInPlayers + countFoldPlayers) <= 1) {
+                                    /**
+                                     *              3
+                                     */
+                                    moveChipsToBank();
+                                    if (TEST) System.out.println("--in 3");
+
+                                        if (table.flop.size() == 0) {
+                                            table.deck.dropCard();
+                                            table.flop.add(table.deck.getCard());
+                                            table.flop.add(table.deck.getCard());
+                                            table.flop.add(table.deck.getCard());
+                                        }
+                                        if (table.turn == null) {
+                                            table.deck.dropCard();
+                                            table.turn = table.deck.getCard();
+                                        }
+                                        if (table.river == null) {
+                                            table.deck.dropCard();
+                                            table.river = table.deck.getCard();
+                                        }
+                                        sendTableCards(table.getCardsOnTable());
+
+                                        gameIsFinished();
+                                }
+                                else {
+                                    /**
+                                     *              4
+                                     */
+                                    // Нужно подвести итоги стола, собрать банк и ПРОВЕРИТЬ на ВЫИГРЫШ
+                                    if (TEST) System.out.println("--in 4");
+
+                                    moveChipsToBank();
+                                    table.countAgreedPlayers = 0;
+
+                                    // Закончили подводить итоги стола
+
+                                    boolean isFindNextPlayer = false;
+                                    table.nowPlayerTurn = 0;
+                                    nowPlayer = table.getNowPlayerTurn();
+                                    prevPlayer = nowPlayer;
+                                    if (nowPlayer.getStatus().equals("fold") || nowPlayer.getStatus().equals("allin") || nowPlayer.countChips() == 0) {
+                                        for (int i = 1; i < table.players.size(); i++) {
+                                            if (!nowPlayer.getStatus().equals("fold") && !nowPlayer.getStatus().equals("allin") && nowPlayer.countChips() > 0) {
+                                                nowPlayer = table.players.get(i);
+                                                table.nowPlayerTurn = i;
+                                            }
+                                        }
+                                    }
+
+                                    /*
+                                     *  Выкладываем карты на стол.
+                                     *  Если флоп не создан - создаем.
+                                     *  Если тёрн не создан - создаем
+                                     *  Если ривер не создан - создаем
+                                     *  и проверяем на конец игры
+                                     */
+
+                                    if (table.flop.size() == 0) {
+    //                                    sendMsg("\n\nВсе игроки сделали ход, банк собран. Продолжаем...");
+    //                                    sendPlayersInfoWithBanks();
+
+                                        table.deck.dropCard();
+                                        table.flop.add(table.deck.getCard());
+                                        table.flop.add(table.deck.getCard());
+                                        table.flop.add(table.deck.getCard());
+
+                                        sendTableCards(table.getCardsOnTable());
+
+                                        table.callPlayerMsg = sendMsg("*Слово за игроком @" + nowPlayer.getName() + " ( " + nowPlayer.countChips() + chipIco + " )*\n" +
+                                                "Ставка стола " + table.nowMaxBet + chipIco + "\n"+
+                                                "Ваша ставка " + nowPlayer.getBet() + chipIco );
+
+                                    } else if (table.turn == null) {
+    //                                    sendMsg("\n\nВсе игроки сделали ход, банк собран. Продолжаем...");
+    //                                    sendPlayersInfoWithBanks();
+                                        table.deck.dropCard();
+                                        table.turn = table.deck.getCard();
+
+                                        sendTableCards(table.getCardsOnTable());
+
+                                        table.callPlayerMsg = sendMsg("*Слово за игроком @" + nowPlayer.getName() + " ( " + nowPlayer.countChips() + chipIco + " )*\n" +
+                                                "Ставка стола " + table.nowMaxBet + chipIco + "\n"+
+                                                "Ваша ставка " + nowPlayer.getBet() + chipIco );
+                                    } else if (table.river == null) {
+    //                                    sendMsg("\n\nВсе игроки сделали ход, банк собран. Продолжаем...");
+    //                                    sendPlayersInfoWithBanks();
+                                        table.deck.dropCard();
+                                        table.river = table.deck.getCard();
+
+                                        sendTableCards(table.getCardsOnTable());
+
+                                        table.callPlayerMsg = sendMsg("*Слово за игроком @" + nowPlayer.getName() + " ( " + nowPlayer.countChips() + chipIco + " )*\n" +
+                                                "Ставка стола " + table.nowMaxBet + chipIco + "\n"+
+                                                "Ваша ставка " + nowPlayer.getBet() + chipIco );
+                                    } else {
+                                        gameIsFinished();
+                                    }
+                                }
+                            }
+
+                        } else deleteMsg();
+                    } else deleteMsg();
+                }
+
+
+            } else if (message.isUserMessage()) {
+                System.out.println(message.getFrom().getUserName() + " :: " + message.getText());
+
+            }
+        }
