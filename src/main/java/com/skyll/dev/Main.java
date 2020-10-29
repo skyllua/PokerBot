@@ -6,6 +6,9 @@ import org.telegram.telegrambots.ApiContextInitializer;
 import org.telegram.telegrambots.meta.TelegramBotsApi;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiRequestException;
 
+import java.io.File;
+import java.io.IOException;
+
 
 public class Main {
     public static final Logger logger = LoggerFactory.getLogger(Main.class);
