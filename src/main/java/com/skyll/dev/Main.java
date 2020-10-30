@@ -14,6 +14,11 @@ public class Main {
     public static final Logger logger = LoggerFactory.getLogger(Main.class);
 
     public static void main(String[] args) {
+        // change class Card in 38 line
+
+        System.out.println(Card.class.getClassLoader().getResource("table.png").getFile());
+        new Card("10", "D").getPic();
+
         ApiContextInitializer.init();
         TelegramBotsApi bot = new TelegramBotsApi();
 
