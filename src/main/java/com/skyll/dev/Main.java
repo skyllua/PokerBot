@@ -8,6 +8,7 @@ import org.telegram.telegrambots.meta.exceptions.TelegramApiRequestException;
 
 import java.io.File;
 import java.io.IOException;
+import java.net.URISyntaxException;
 
 
 public class Main {
@@ -16,7 +17,7 @@ public class Main {
     public static void main(String[] args) {
         // change class Card in 38 line
 
-        System.out.println(Card.class.getClassLoader().getResource("table.png").getFile());
+
         new Card("10", "D").getPic();
 
         ApiContextInitializer.init();

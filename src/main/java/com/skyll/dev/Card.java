@@ -35,9 +35,6 @@ public class Card {
 
     public BufferedImage getPic() {
         try {
-            System.out.println(Methods.getResourcesPath());
-            System.out.println(new File(Methods.getCardsPath() + value + suit + ".png").exists());
-            System.out.println(Methods.getCardsPath() + value + suit +".png");
             return ImageIO.read(new File(Methods.getCardsPath() + value + suit +".png"));
         } catch (IOException e) {
             e.printStackTrace();

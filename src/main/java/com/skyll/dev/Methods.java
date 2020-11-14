@@ -70,8 +70,9 @@ public class Methods  {
         return file;
     }
 
-    public static String getResourcesPath(){
-        return Methods.class.getClassLoader().getResource("table.png").getPath().substring(1, Methods.class.getClassLoader().getResource("table.png").getPath().lastIndexOf("/")+1).replaceAll("%20", " ");
+    public static String getResourcesPath() {
+        String path = Methods.class.getClassLoader().getResource("table.png").getPath();
+        return path.substring(5, path.lastIndexOf("target")) + "target/classes/";
     }
 
     public static String getCardsPath() { return getResourcesPath() + "Big Icons/"; }

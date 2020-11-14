@@ -61,7 +61,7 @@
                     <programs>
                         <program>
                             <mainClass>com.skyll.dev.Main</mainClass>
-                            <name>worker</name>
+                            <name>PokerBot</name>
                         </program>
                     </programs>
                 </configuration>
